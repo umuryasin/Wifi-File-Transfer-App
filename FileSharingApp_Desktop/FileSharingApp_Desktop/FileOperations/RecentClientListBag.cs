@@ -25,6 +25,5 @@ class RecentClientListBag
         // Close the readerFileStream when we are done
         readerFileStream.Close();
         this.RecentClients = bagFile.RecentClients;
-
     }
 }
