@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
-using System.Threading.Tasks;
 
 [Serializable]
 class ParametersBag
 {
     public string SavingPath;
     public string DeviceName;
+    public string DeviceLanguage;
     public void Save(string url)
     {
         FileStream writerFileStream = new FileStream(url, FileMode.Create, FileAccess.Write);
@@ -27,6 +24,7 @@ class ParametersBag
         bagFile = (ParametersBag)formatter.Deserialize(readerFileStream);
         this.SavingPath = bagFile.SavingPath;
         this.DeviceName = bagFile.DeviceName;
+        this.DeviceLanguage = bagFile.DeviceLanguage;
         // Close the readerFileStream when we are done
         readerFileStream.Close();
     }

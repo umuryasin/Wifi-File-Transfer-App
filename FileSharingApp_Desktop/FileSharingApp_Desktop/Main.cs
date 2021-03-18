@@ -1,15 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Resources;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 
 public class Main
 {
@@ -32,6 +25,7 @@ public class Main
 
     public delegate void TransferFinishedDelegate();
     public static event TransferFinishedDelegate OnTransferFinished;
+    public static event TransferFinishedDelegate OnTransferAborted;
 
     public delegate void TransferRespondedDelegate(bool isAccepted);
     public static event TransferRespondedDelegate OnTransferResponded;
@@ -65,6 +59,19 @@ public class Main
                 _isTransfering = value;
         }
     }
+    public static bool IsSending
+    {
+        get
+        {
+            lock (Lck_IsSending)
+                return _isSending;
+        }
+        set
+        {
+            lock (Lck_IsSending)
+                _isSending = value;
+        }
+    }
     private static bool IsTransferEnabled
     {
         get
@@ -93,6 +100,7 @@ public class Main
     private static Thread sendingThread;
     private static bool _isTransferEnabled = false;
     private static bool _isTransfering = false;
+    private static bool _isSending = false;
     private static FileStruct CurrentFile;
     private static Metrics _transferMetrics;
     private static int MB = 1024 * 1024;
@@ -102,6 +110,7 @@ public class Main
     private static object Lck_IsTransferEnabled = new object();
     private static object Lck_TransferMetrics = new object();
     private static object Lck_IsTransfering = new object();
+    private static object Lck_IsSending = new object();
     #endregion
 
     #region Enums and structures definitions
@@ -114,7 +123,8 @@ public class Main
         AllisSent,                  /// || no bytes needed ==> no response expected
         AcceptFiles,                /// Response to QueryTransfer function
         RejectFiles,                /// Response to QueryTransfer function
-        Ready                       /// Ready to receive file (response from receiver to StartofFileTransfer)
+        Ready,                      /// Ready to receive file (response from receiver to StartofFileTransfer)
+        Aborted                     /// When any of the device aborts the transfer
     }
     public struct FileStruct
     {
@@ -135,6 +145,7 @@ public class Main
         public double TotalDataSize;        /// MB KB GB...
         public double TotalDataSent;        /// MB KB GB...
         public FileOperations.SizeUnit SizeUnit;
+        public FileOperations.SizeUnit SentSizeUnit;
         public double Progress;             /// between 0 and 100
         public double TotalElapsedTime;     /// Seconds
         public double EstimatedTime;        /// Seconds
@@ -156,6 +167,12 @@ public class Main
         server.StartListener();
         server.OnClientConnected += Server_OnClientConnected;
         IsTransferEnabled = true;
+    }
+    private static byte[] PrepareAbortMessage()
+    {
+        byte[] data = new byte[2];
+        data[0] = (byte)Functions.Aborted;
+        return data;
     }
     #endregion
 
@@ -186,7 +203,7 @@ public class Main
         Task.Run(() =>
         {
             byte[] clientResponse = client.GetData();
-            bool isAccepted=false;
+            bool isAccepted = false;
             if (clientResponse != null)
             {
                 if ((Functions)clientResponse[0] == Functions.AcceptFiles)
@@ -197,11 +214,11 @@ public class Main
                 OnTransferResponded(isAccepted);
             else
             {
-                 client.DisconnectFromServer();
-        client = null;
+                client.DisconnectFromServer();
+                client = null;
             }
         });
-        
+
     }
     public static void BeginSendingFiles()
     {
@@ -265,7 +282,17 @@ public class Main
                 client.SendDataServer(buffer);
                 totalBytesRead += numberOfBytesRead;
                 byteCounter += numberOfBytesRead;
-                CheckAck(Functions.TransferMode);
+                if (!CheckAck(Functions.TransferMode))
+                {
+                    client.DisconnectFromServer();
+                    client = null;
+                    server.CloseServer();
+                    server = null;
+                    StartServer();
+                    if (File != null)
+                        File.CloseFile();
+                    return;
+                }
                 if (watch.Elapsed.TotalSeconds >= 0.5)
                 {
                     UpdateMetrics(watch, byteCounter);
@@ -280,30 +307,50 @@ public class Main
                 }
             }
             File.CloseFile();
+            if (!IsTransferEnabled)
+            {
+                byte[] abortData = PrepareAbortMessage();
+                client.SendDataServer(abortData);
+                break;
+            }
             byte[] endBytes = new byte[5];
             endBytes[0] = (byte)Functions.EndofFileTransfer;
             client.SendDataServer(endBytes);
             CheckAck(Functions.EndofFileTransfer);
-            if (!IsTransferEnabled)
-                break;
+            
         }
         IsTransfering = false;
         SendLastFrame();
-        if(OnTransferFinished!=null)
+        if (OnTransferFinished != null)
             OnTransferFinished();
         client.DisconnectFromServer();
         client = null;
-        server.CloseServer();
+        if (server != null) ;
+            server.CloseServer();
         server = null;
         StartServer();
     }
     private static bool CheckAck(Functions func)
     {
         byte[] data = client.GetData();
-        if (data[0] == (byte)func)
-            return true;
-        else
-            return false;
+        bool ack = false;
+        if (data != null)
+        {
+            if (data.Length > 0)
+            {
+                if (data[0] == (byte)func)
+                {
+                    ack = true;
+                }
+                else if (data[0] == (byte)Functions.Aborted)
+                {
+                    if (OnTransferAborted != null)
+                        OnTransferAborted();
+                    IsTransfering = false;
+                }
+            }
+        }
+        return ack;
     }
     private static void UpdateMetrics(Stopwatch watch, long byteCount)
     {
@@ -325,6 +372,7 @@ public class Main
             _transferMetrics.SizeUnit = file.FileSizeUnit;
             file.CalculateFileSize(_transferMetrics.TotalBytesSent);
             _transferMetrics.TotalDataSent = file.FileSize;
+            _transferMetrics.SentSizeUnit = file.FileSizeUnit;
         }
     }
     private static void SendFirstFrame()
@@ -365,10 +413,13 @@ public class Main
         byte[] receivedData = client.GetData();
         if (receivedData == null)
             return false;
-        if ((Functions)receivedData[0] == Functions.Ready)
-            return true;
-        else
-            return false;
+        bool isReady = false;
+        if (receivedData.Length > 0)
+        {
+            if ((Functions)receivedData[0] == Functions.Ready)
+                isReady = true;
+        }
+        return isReady;
     }
     private static long GetTransferSize()
     {
@@ -414,6 +465,23 @@ public class Main
         else
             data[0] = (byte)Functions.RejectFiles;
         server.SendDataToClient(data);
+        if (!isAccepted)
+        {
+            Task.Run(() =>
+            {
+                Thread.Sleep(500);
+                try
+                {
+                    server.CloseServer();
+                    server = null;
+                    StartServer();
+                }
+                catch
+                {
+
+                }
+            });
+        }
     }
 
     #endregion
@@ -438,7 +506,11 @@ public class Main
             File.CalculateFileSize(transferSize);
             string fileSizeString = File.FileSize.ToString("0.00") + " " + File.FileSizeUnit.ToString();
             Debug.WriteLine("numberOfFiles: " + numberOfFiles + " transfer size: " + fileSizeString + " device Name: " + senderDevice);
-            OnClientRequested(fileSizeString, senderDevice);
+            IsSending = false;
+            if (OnClientRequested != null)
+                OnClientRequested(fileSizeString, senderDevice);
+            else
+                ResponseToTransferRequest(false);
             _transferMetrics.TotalDataSizeAsBytes = transferSize;
         }
     }
@@ -474,6 +546,7 @@ public class Main
             FilePaths[i] = FileSaveURL + CurrentFile.FileName;
             SendReadySignal();
             File = new FileOperations();
+            Debug.WriteLine("receiveing for: " + i + " FilePaths.Length: " + FilePaths.Length);
             File.Init(FileSaveURL + CurrentFile.FileName, FileOperations.TransferMode.Receive);
             Debug.WriteLine("saveURL:" + FileSaveURL + " name: " + CurrentFile.FileName);
             lock (Lck_TransferMetrics)
@@ -523,7 +596,22 @@ public class Main
                     server.CloseServer();
                     server = null;
                     IsTransfering = false;
+                    StartServer();
+                    if (File != null)
+                        File.CloseFile();
                     OnTransferFinished();
+                    return;
+                }
+                else if (receivedData[0] == (byte)Functions.Aborted)
+                {
+                    server.CloseServer();
+                    server = null;
+                    IsTransfering = false;
+                    StartServer();
+                    if (File != null)
+                        File.CloseFile();
+                    if (OnTransferAborted != null)
+                        OnTransferAborted();
                     return;
                 }
                 else
@@ -534,12 +622,17 @@ public class Main
             }
             File.CloseFile();
             if (!IsTransferEnabled)
+            {
+                byte[] abortData = PrepareAbortMessage();
+                server.SendDataToClient(abortData);
                 break;
+            }
         }
         if (server != null)
         {
             server.GetData();
-            OnTransferFinished();
+            if(OnTransferFinished!=null)
+                OnTransferFinished();
             server.CloseServer();
             server = null;
         }

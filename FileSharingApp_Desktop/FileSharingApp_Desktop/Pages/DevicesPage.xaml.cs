@@ -1,19 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
+﻿using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+
 
 namespace FileSharingApp_Desktop.Pages
 {
@@ -31,13 +21,17 @@ namespace FileSharingApp_Desktop.Pages
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
             Main.OnTransferResponded += Main_OnTransferResponded;
-            if (NetworkScanner.DeviceNames != null)
+            ShowDevices();
+            bool isAnyDeviceAvailable = false;
+            if (NetworkScanner.DeviceNames==null)
             {
-                Dispatcher.Invoke(() =>
+                if(NetworkScanner.DeviceNames.Count>0)
                 {
-                    list_Devices.ItemsSource = NetworkScanner.DeviceNames.ToArray();
-                });
+                    isAnyDeviceAvailable = true;
+                }
             }
+            if (!isAnyDeviceAvailable)
+                btn_Scan_Click(null, null);
         }
         private void Page_Unloaded(object sender, RoutedEventArgs e)
         {
@@ -56,7 +50,7 @@ namespace FileSharingApp_Desktop.Pages
             }
             else
             {
-                var result = MessageBox.Show("Transfer request is rejected by receiver", "Transfer Rejected", button: MessageBoxButton.OK);
+                var result = MessageBox.Show(Properties.Resources.Send_Warning_rejected, Properties.Resources.Rejected_Title, button: MessageBoxButton.OK);
             }
         }
 
@@ -71,21 +65,16 @@ namespace FileSharingApp_Desktop.Pages
 
         private void btn_Scan_Click(object sender, RoutedEventArgs e)
         {
-            NetworkScanner.DeviceNames = new List<string>();
-            NetworkScanner.ScanAvailableDevices();
             NetworkScanner.OnScanCompleted += NetworkScanner_OnScanCompleted;
-            isScanning = true;
+            Dispatcher.Invoke(() =>
+            {
+                NetworkScanner.ScanAvailableDevices();
+            });
             Task.Run(() =>
             {
-                while (isScanning)
+                while (NetworkScanner.IsScanning)
                 {
-                    if (NetworkScanner.DeviceNames != null)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            list_Devices.ItemsSource = NetworkScanner.DeviceNames.ToArray();
-                        });
-                    }
+                    ShowDevices();
                     Thread.Sleep(100);
                 }
             });
@@ -94,13 +83,7 @@ namespace FileSharingApp_Desktop.Pages
         private void NetworkScanner_OnScanCompleted()
         {
             isScanning = false;
-            if (NetworkScanner.DeviceNames != null)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    list_Devices.ItemsSource = NetworkScanner.DeviceNames.ToArray();
-                });
-            }
+            ShowDevices();
         }
 
         private void btn_Send_Click(object sender, RoutedEventArgs e)
@@ -110,6 +93,20 @@ namespace FileSharingApp_Desktop.Pages
         private void btn_Back_Click(object sender, RoutedEventArgs e)
         {
             Navigator.GoBack();
-        }        
+        }     
+        private void ShowDevices()
+        {
+            if (NetworkScanner.DeviceNames != null)
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    list_Devices.ItemsSource = NetworkScanner.DeviceNames.ToArray();
+                    if (NetworkScanner.DeviceNames.Count > 0)
+                    {
+                        list_Devices.SelectedIndex = 0;
+                    }
+                });
+            }            
+        }
     }
 }

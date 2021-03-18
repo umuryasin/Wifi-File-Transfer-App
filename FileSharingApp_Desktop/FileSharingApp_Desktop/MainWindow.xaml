@@ -6,15 +6,99 @@
         xmlns:local="clr-namespace:FileSharingApp_Desktop"
         mc:Ignorable="d"
         Loaded="Window_Loaded"
-        Title="Wifi File Transfer " 
-        Height="600" 
+        Title="Buggy File Transfer " 
+        Height="650" 
         Width="800"
         ResizeMode="CanMinimize" 
         Background="#353536"
         Closed="Window_Closed"
         >
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="1*"/>
+            <RowDefinition Height="10*"/>
+        </Grid.RowDefinitions>
 
-    <Frame x:Name="MainFrame" HorizontalAlignment="Center" VerticalAlignment="Center" NavigationUIVisibility="Hidden" 
-           Width="750" Height="560" />
+        <Grid Grid.Row="0" Background="#1E88FA" >
+            <StackPanel Orientation="Horizontal" >
+                <Image Source="/Pages/BC_logo_1.png"                   
+                   Margin="20,5"
+                   HorizontalAlignment="Left"/>
+                <Label Content="Buggy Company" FontWeight="Bold" FontSize="20"  
+                   VerticalAlignment="Center" HorizontalAlignment="Left"
+                   Foreground="White" FontStyle="Italic" />
+            </StackPanel>
+            
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" 
+            HorizontalAlignment="Right" 
+                    Margin="10,0,5,0">
+
+            <Button  x:Name="Btn_Blogger" Width="100" Height="50" Click="Btn_Blogger_Click"
+                    Margin="0,5" 
+                    Background="Transparent" BorderThickness="0">
+                <Border BorderBrush="Orange" BorderThickness="1" Background="Orange" CornerRadius="2" >
+                    <StackPanel Orientation="Horizontal" Background="Transparent" >
+                        <Image Source="/Icons/blogger.png" Width="25" />
+                        <Label Content="Blogger"  Foreground="White" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+                
+            </Button>
+
+            <Button x:Name="Btn_Patreon" Width="100" Height="50" Click="Btn_Patreon_Click"
+                    Margin="0,5"
+                    Background="Transparent" BorderThickness="0">
+                <Border BorderBrush="LightPink" BorderThickness="1" Background="LightPink" CornerRadius="2" >
+                    <StackPanel Orientation="Horizontal">
+                    <Image Source="/Icons/patreon.png" Width="25" />
+                        <Label Content="Patreon" Foreground="White" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+
+            </Button>
+
+            <Button x:Name="Btn_Instagram" Width="100" Height="50" Click="Btn_Instagram_Click" 
+                    Margin="0,5"
+                    Background="Transparent" BorderThickness="0" >
+                <Border BorderBrush="IndianRed" BorderThickness="1" Background="IndianRed" CornerRadius="2" >
+                    <StackPanel Orientation="Horizontal" Background="IndianRed">
+                    <Image Source="/Icons/instagram.png" Width="25" />
+                        <Label Content="Instagram" Foreground="White" FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+
+            </Button>
+
+            <Button x:Name="Btn_Youtube" Width="100" Height="50" Click="Btn_Youtube_Click" 
+                    Margin="0,5"
+                    Background="Transparent" BorderThickness="0" >
+                <Border BorderBrush="PaleVioletRed" BorderThickness="1" Background="PaleVioletRed" CornerRadius="2" >
+                    <StackPanel Orientation="Horizontal" Background="PaleVioletRed">
+                    <Image Source="/Icons/youtube.png" Width="25" />
+                        <Label Content="Youtube" Foreground="White" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+            </Button>
+            <Button  x:Name="Btn_PlayStore" Click="Btn_PlayStore_Click"
+                    Margin="0,4,0,0" 
+                    Background="Transparent" BorderThickness="0">
+                        <Image Source="/Icons/playstoreGet.png" Width="100"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+            </Button>
+
+        </StackPanel>
+
+        <Frame x:Name="MainFrame" 
+               Grid.Row="1"
+           HorizontalAlignment="Center" VerticalAlignment="Center" 
+           NavigationUIVisibility="Hidden" 
+           Width="800" Height="560" />
+    </Grid>
+    
+   
 
 </Window>

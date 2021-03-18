@@ -3,17 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace FileSharingApp_Desktop.Pages
 {
@@ -44,11 +36,7 @@ namespace FileSharingApp_Desktop.Pages
                 FilePaths = new List<string>();
                 ShowFileList(false);
             }
-            if (!Parameters.DidInitParameters)
-            {
-                Parameters.Init();
-                ScanNetwork();
-            }
+            
             NetworkScanner.GetDeviceAddress(out DeviceIP, out DeviceHostName);
             Main.FileSaveURL = Parameters.SavingPath;
             Debug.WriteLine("Save file path: " + Main.FileSaveURL);
@@ -65,10 +53,12 @@ namespace FileSharingApp_Desktop.Pages
         private void Main_OnClientRequested(string totalTransferSize, string deviceName)
         {
             /// Show file transfer request and ask for permission here
-            Debug.WriteLine(deviceName + " wants to send you files: " + totalTransferSize + " \n Do you want to receive?");
-            var result = MessageBox.Show(deviceName + " wants to send you files: " + totalTransferSize + " \n Do you want to receive?", "Transfer Request!", button: MessageBoxButton.YesNo);
+            Debug.WriteLine(deviceName + Properties.Resources.Permission_RequestMessage + totalTransferSize + " \n "+ Properties.Resources.Permission_RequestMessage);
             Dispatcher.Invoke(() =>
             {
+                var result = MessageBox.Show(deviceName + " " + Properties.Resources.Permission_RequestMessage + " " + totalTransferSize + " \n " + Properties.Resources.Permission_RequestMessage,
+                   Properties.Resources.Permission_InfoMessage, button: MessageBoxButton.YesNo);
+
                 if (result == MessageBoxResult.Yes)
                 {
                     Navigator.Navigate("Pages/TransferPage.xaml");
@@ -125,6 +115,7 @@ namespace FileSharingApp_Desktop.Pages
                     list_Files.SelectedIndex = 0;
                     btn_Send.Visibility = Visibility.Visible;
                     lbl_ReceiveInfo.Visibility = Visibility.Hidden;
+                    btn_MainMenu.Visibility = Visibility.Visible;
                 }
                 else
                 {
@@ -134,15 +125,12 @@ namespace FileSharingApp_Desktop.Pages
                     lbl_Info.Visibility = Visibility.Visible;
                     btn_Send.Visibility = Visibility.Hidden;
                     lbl_ReceiveInfo.Visibility = Visibility.Visible;
+                    btn_MainMenu.Visibility = Visibility.Hidden;
                 }
             });
             
         }
-        private void ScanNetwork()
-        {
-            Debug.WriteLine("Scanning Network");
-           Task.Run(()=> NetworkScanner.ScanAvailableDevices());
-        }
+        
         private void AddFilesToList(string[] filePaths)
         {
             if (filePaths == null)
@@ -167,6 +155,7 @@ namespace FileSharingApp_Desktop.Pages
             {
                 Parameters.DeviceName = txt_DeviceName.Text;
                 Parameters.Save();
+                txt_DeviceName.IsReadOnly = true;
             }
         }
 
@@ -209,6 +198,12 @@ namespace FileSharingApp_Desktop.Pages
                 Main.SetFilePaths(FilePaths.ToArray());
                 Navigator.Navigate("Pages/DevicesPage.xaml");
             }
-        }       
+        }
+
+        private void btn_MainMenu_Click(object sender, RoutedEventArgs e)
+        {
+            Main.FilePaths = null;
+            ShowFileList(false);
+        }
     }
 }

@@ -1,19 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+
 
 namespace FileSharingApp_Desktop.Pages
 {
@@ -31,15 +22,31 @@ namespace FileSharingApp_Desktop.Pages
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
             Main.OnTransferFinished += Main_OnTransferFinished;
+            Main.OnTransferAborted += Main_OnTransferAborted;
             Task.Run(() =>
             {
                 while (!Main.IsTransfering)//&& TimeSpan.FromSeconds(5).TotalSeconds<5) ;
                 {
-                    Thread.Sleep(1);
+                    Thread.Sleep(2);
                 }
                 StartUpdatingUI();
             });
         }
+        private void Page_Unloaded(object sender, RoutedEventArgs e)
+        {
+            Main.OnTransferFinished -= Main_OnTransferFinished;
+            Main.OnTransferAborted -= Main_OnTransferAborted;
+        }
+        private void Main_OnTransferAborted()
+        {
+            MessageBox.Show(Properties.Resources.Transfer_AbortedMessage);
+            Dispatcher.Invoke(() =>
+            {
+                Main.FilePaths = null;
+                Navigator.Navigate("Pages/MainPage.xaml");
+            });
+        }
+
         private void Main_OnTransferFinished()
         {
             
@@ -51,8 +58,17 @@ namespace FileSharingApp_Desktop.Pages
 
         private void btn_AbortTransfer_Click(object sender, RoutedEventArgs e)
         {
-            Main.AbortTransfer();
-            Navigator.Navigate("Pages/MainPage.xaml");
+            Dispatcher.Invoke(() =>
+            {
+                var result = MessageBox.Show(Properties.Resources.Transfer_ConfirmAbortMessage, Properties.Resources.Transfer_ConfirmAbortTitle, MessageBoxButton.YesNo);
+                if (result == MessageBoxResult.Yes)
+                {
+                    Main.OnTransferFinished -= Main_OnTransferFinished;
+                    Main.AbortTransfer();
+                    Main.FilePaths = null;
+                    Navigator.Navigate("Pages/MainPage.xaml");
+                }
+            });
         }
         private void StartUpdatingUI()
         {
@@ -102,5 +118,7 @@ namespace FileSharingApp_Desktop.Pages
             if (!Main.IsTransfering)
                 StopUpdateingUI();
         }
+
+        
     }
 }
